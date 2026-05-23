@@ -155,7 +155,7 @@
 
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
-from inference import InferenceHTTPClient
+from inference_sdk import InferenceHTTPClient
 import tempfile
 import os
 import requests

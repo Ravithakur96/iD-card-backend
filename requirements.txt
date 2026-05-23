@@ -3,4 +3,4 @@ flask-cors
 requests
 gunicorn
 python-dotenv
-inference
+inference-sdk
