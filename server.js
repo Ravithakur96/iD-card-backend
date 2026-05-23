@@ -6,13 +6,19 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const app = express();
+const cors = require("cors");
 
 app.use(cors());
 app.use(express.json());
 
+
 const personRoutes = require("./routes/personRoutes");
 
 app.use("/api/persons", personRoutes);
+
+const locationRoutes = require("./routes/locationRoutes");
+
+app.use("/api/location", locationRoutes);
 
 mongoose.connect(process.env.MONGO_URI)
 .then(() => {
