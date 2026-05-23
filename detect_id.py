@@ -158,6 +158,7 @@ from dotenv import load_dotenv
 from inference_sdk import InferenceHTTPClient
 import tempfile
 import os
+import requests
 
 load_dotenv()
 
