@@ -40,7 +40,9 @@ router.post("/", upload.single("photo"), async (req, res) => {
 const FormData = require("form-data");
 
 const formData = new FormData();
-formData.append("image", req.file.buffer, req.file.originalname);
+
+// send Cloudinary image URL directly
+formData.append("image", req.file.path);
 
 const detectRes = await axios.post(
   `${process.env.PYTHON_API_URL}/detect`,
