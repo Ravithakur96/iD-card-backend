@@ -37,17 +37,13 @@ router.post("/", upload.single("photo"), async (req, res) => {
   responseType: "stream"
 });
 
+const FormData = require("form-data");
+
 const formData = new FormData();
-
-formData.append(
-  "image",
-  imageResponse.data
-);
-
-console.log("Sending image to Python...");
+formData.append("image", req.file.buffer, req.file.originalname);
 
 const detectRes = await axios.post(
-  "http://127.0.0.1:8000/detect",
+  `${process.env.PYTHON_API_URL}/detect`,
   formData,
   {
     headers: formData.getHeaders()
