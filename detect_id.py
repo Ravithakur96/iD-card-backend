@@ -174,94 +174,52 @@ def detect():
 
     print("API HIT")
 
-    image_url = request.form.get("image_url")
+    data = request.get_json()
+    image_url = data.get("image_url")
 
     if not image_url:
-     return jsonify({"success": False, "message": "No image URL"})
-
-    image = request.files["image"]
-
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-
-    image.save(temp_file.name)
+        return jsonify({
+            "success": False,
+            "message": "No image URL"
+        })
 
     result = client.run_workflow(
-    workspace_name="sr-banda",
-    workflow_id="detect-count-and-visualize",
-    images={
-        "image": image_url
-    },
-    use_cache=False
-)
+        workspace_name="sr-banda",
+        workflow_id="detect-count-and-visualize",
+        images={
+            "image": image_url
+        },
+        use_cache=False
+    )
 
-    print("FULL RESULT:")
-    print(result)
+    print("FULL RESULT:", result)
 
     has_person = False
     has_idcard = False
 
+    predictions = []
+
     try:
-
-        predictions = []
-
-        # CASE 1
         if isinstance(result, dict):
-
             predictions = result.get("predictions", [])
 
-        # CASE 2
-        elif isinstance(result, list):
-
-            if len(result) > 0:
-
-                first = result[0]
-
-                if "predictions" in first:
-
-                    if isinstance(first["predictions"], dict):
-
-                        predictions = first["predictions"].get("predictions", [])
-
-                    else:
-
-                        predictions = first["predictions"]
-
-        print("FINAL PREDICTIONS:")
-        print(predictions)
+        elif isinstance(result, list) and len(result) > 0:
+            predictions = result[0].get("predictions", [])
 
         for item in predictions:
-
             cls = item.get("class")
-
-            print("Detected:", cls)
 
             if cls == "Person":
                 has_person = True
-
             if cls == "IDCard":
                 has_idcard = True
 
-        found = has_person and has_idcard
-
-        print("FINAL RESULT:", found)
-
     except Exception as e:
-
-        print("REAL ERROR:")
-        print(e)
-
-        found = False
-
-    try:
-        temp_file.close()
-        os.unlink(temp_file.name)
-
-    except Exception as e:
-        print("DELETE ERROR:", e)
+        print("ERROR:", e)
 
     return jsonify({
         "success": True,
-        "id_card_detected": found
+        "id_card_detected": has_person and has_idcard
     })
 
 if __name__ == "__main__":

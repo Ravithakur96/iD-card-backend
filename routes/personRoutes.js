@@ -26,45 +26,31 @@ const storage = new CloudinaryStorage({
 const upload = multer({ storage });
 
 router.post("/", upload.single("photo"), async (req, res) => {
-
   try {
 
     console.log(req.file);
 
-    const imageResponse = await axios({
-  url: req.file.path,
-  method: "GET",
-  responseType: "stream"
-});
+    const detectRes = await axios.post(
+      `${process.env.PYTHON_API_URL}/detect`,
+      {
+        image_url: req.file.path
+      }
+    );
 
-const FormData = require("form-data");
+    console.log(detectRes.data);
 
-const formData = new FormData();
+    const hasIdCard = detectRes.data.id_card_detected;
 
-// send Cloudinary image URL directly
-formData.append("image_url", req.file.path);
-
-const detectRes = await axios.post(
-  `${process.env.PYTHON_API_URL}/detect`,
-  {
-    image: req.file.path
-  }
-);
-
-console.log(detectRes.data);
-
-const hasIdCard = detectRes.data.id_card_detected;
-
-const newPerson = new Person({
-  name: req.body.name,
-  dob: req.body.dob,
-  department: req.body.department,
-  phone: req.body.phone,
-  email: req.body.email,
-  location: req.body.location,
-  photo: req.file.path,
-  idCard: hasIdCard
-});
+    const newPerson = new Person({
+      name: req.body.name,
+      dob: req.body.dob,
+      department: req.body.department,
+      phone: req.body.phone,
+      email: req.body.email,
+      location: req.body.location,
+      photo: req.file.path,
+      idCard: hasIdCard
+    });
 
     await newPerson.save();
 
@@ -74,22 +60,9 @@ const newPerson = new Person({
     });
 
   } catch (error) {
-
-  console.log("FULL ERROR:");
-
-  console.log(error);
-
-  if (error.response) {
-    console.log("PYTHON ERROR DATA:");
-    console.log(error.response.data);
+    console.log(error);
+    res.status(500).json({ error: error.message });
   }
-
-  res.status(500).json({
-    error: error.message
-  });
-
-}
-
 });
 
 router.get("/", async (req, res) => {
