@@ -201,13 +201,25 @@ def detect():
 
     try:
 
-        # RESULT PARSING
+        # CASE 1
         if isinstance(result, dict):
-            predictions = result.get("predictions", [])
 
+            if isinstance(result.get("predictions"), list):
+                predictions = result.get("predictions")
+
+            elif isinstance(result.get("predictions"), dict):
+                predictions = result["predictions"].get("predictions", [])
+
+        # CASE 2
         elif isinstance(result, list) and len(result) > 0:
+
             first = result[0]
-            predictions = first.get("predictions", [])
+
+            if isinstance(first.get("predictions"), list):
+                predictions = first.get("predictions")
+
+            elif isinstance(first.get("predictions"), dict):
+                predictions = first["predictions"].get("predictions", [])
 
         print("PREDICTIONS:")
         print(predictions)
