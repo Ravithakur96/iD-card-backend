@@ -156,9 +156,7 @@
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from inference_sdk import InferenceHTTPClient
-import tempfile
 import os
-import requests
 
 load_dotenv()
 
@@ -199,19 +197,25 @@ def detect():
 
     predictions = []
 
+    # ✅ SAFE parsing
     try:
         if isinstance(result, dict):
             predictions = result.get("predictions", [])
 
         elif isinstance(result, list) and len(result) > 0:
-            predictions = result[0].get("predictions", [])
+            first = result[0]
+            predictions = first.get("predictions", [])
 
+        # ✅ LOOP FIX (IMPORTANT)
         for item in predictions:
-            cls = item.get("class")
+            cls = str(item.get("class", "")).lower()
 
-            if cls == "Person":
+            print("Detected:", cls)
+
+            if cls == "person":
                 has_person = True
-            if cls == "IDCard":
+
+            if cls in ["idcard", "id card", "id_card", "id"]:
                 has_idcard = True
 
     except Exception as e:
