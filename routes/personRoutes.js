@@ -42,13 +42,12 @@ const FormData = require("form-data");
 const formData = new FormData();
 
 // send Cloudinary image URL directly
-formData.append("image", req.file.path);
+formData.append("image_url", req.file.path);
 
 const detectRes = await axios.post(
   `${process.env.PYTHON_API_URL}/detect`,
-  formData,
   {
-    headers: formData.getHeaders()
+    image: req.file.path
   }
 );
 

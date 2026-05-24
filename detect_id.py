@@ -174,10 +174,10 @@ def detect():
 
     print("API HIT")
 
-    if "image" not in request.files:
-        return jsonify({
-            "success": False
-        })
+    image_url = request.form.get("image_url")
+
+    if not image_url:
+     return jsonify({"success": False, "message": "No image URL"})
 
     image = request.files["image"]
 
@@ -186,13 +186,13 @@ def detect():
     image.save(temp_file.name)
 
     result = client.run_workflow(
-        workspace_name="sr-banda",
-        workflow_id="detect-count-and-visualize",
-        images={
-            "image": temp_file.name
-        },
-        use_cache=False
-    )
+    workspace_name="sr-banda",
+    workflow_id="detect-count-and-visualize",
+    images={
+        "image": image_url
+    },
+    use_cache=False
+)
 
     print("FULL RESULT:")
     print(result)
