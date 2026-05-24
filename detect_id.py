@@ -162,75 +162,105 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Roboflow Client
 client = InferenceHTTPClient(
     api_url="https://serverless.roboflow.com",
     api_key=os.getenv("ROBOFLOW_API_KEY")
 )
 
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({
+        "success": True,
+        "message": "Python Detection API Running"
+    })
+
 @app.route("/detect", methods=["POST"])
 def detect():
 
-    print("API HIT")
-
-    data = request.get_json()
-
-    image_url = data.get("image_url")
-
-    if not image_url:
-        return jsonify({
-            "success": False,
-            "message": "No image URL"
-        })
-
-    result = client.run_workflow(
-        workspace_name="sr-banda",
-        workflow_id="detect-count-and-visualize",
-        images={
-            "image": image_url
-        },
-        use_cache=False
-    )
-
-    print("FULL RESULT:")
-    print(result)
-
-    has_person = False
-    has_idcard = False
-
-    predictions = []
-
     try:
 
-        # CASE 1
+        print("===== API HIT =====")
+
+        # JSON data receive
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "success": False,
+                "message": "No JSON data received"
+            }), 400
+
+        image_url = data.get("image_url")
+
+        print("IMAGE URL:")
+        print(image_url)
+
+        if not image_url:
+            return jsonify({
+                "success": False,
+                "message": "No image_url provided"
+            }), 400
+
+        # Run Roboflow Workflow
+        result = client.run_workflow(
+            workspace_name="sr-banda",
+            workflow_id="detect-count-and-visualize",
+            images={
+                "image": image_url
+            },
+            use_cache=False
+        )
+
+        print("===== FULL RESULT =====")
+        print(result)
+
+        has_person = False
+        has_idcard = False
+
+        predictions = []
+
+        # -------------------------
+        # RESULT PARSING
+        # -------------------------
+
         if isinstance(result, dict):
 
+            # CASE 1
             if isinstance(result.get("predictions"), list):
+
                 predictions = result.get("predictions")
 
+            # CASE 2
             elif isinstance(result.get("predictions"), dict):
+
                 predictions = result["predictions"].get("predictions", [])
 
-        # CASE 2
         elif isinstance(result, list) and len(result) > 0:
 
             first = result[0]
 
             if isinstance(first.get("predictions"), list):
+
                 predictions = first.get("predictions")
 
             elif isinstance(first.get("predictions"), dict):
+
                 predictions = first["predictions"].get("predictions", [])
 
-        print("PREDICTIONS:")
+        print("===== FINAL PREDICTIONS =====")
         print(predictions)
 
-        # LOOP
+        # -------------------------
+        # DETECTION LOOP
+        # -------------------------
+
         for item in predictions:
 
             print("ITEM:")
             print(item)
 
-            cls = str(item.get("class", "")).lower()
+            cls = str(item.get("class", "")).strip().lower()
 
             print("CLASS:")
             print(cls)
@@ -238,21 +268,34 @@ def detect():
             if cls == "person":
                 has_person = True
 
-            if cls in ["idcard", "id card", "id_card", "id"]:
+            if cls in ["idcard", "id card", "id_card"]:
                 has_idcard = True
+
+        print("PERSON:", has_person)
+        print("IDCARD:", has_idcard)
+
+        final_result = has_person and has_idcard
+
+        print("FINAL RESULT:", final_result)
+
+        return jsonify({
+            "success": True,
+            "id_card_detected": final_result,
+            "person_detected": has_person,
+            "card_detected": has_idcard,
+            "predictions": predictions
+        })
 
     except Exception as e:
 
-        print("ERROR:")
-        print(e)
+        print("===== ERROR =====")
+        print(str(e))
 
-    print("PERSON:", has_person)
-    print("IDCARD:", has_idcard)
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
-    return jsonify({
-        "success": True,
-        "id_card_detected": has_person and has_idcard
-    })
 
 if __name__ == "__main__":
-    app.run(port=8000, debug=True)
+    app.run(host="0.0.0.0", port=8000, debug=True)
