@@ -173,6 +173,7 @@ def detect():
     print("API HIT")
 
     data = request.get_json()
+
     image_url = data.get("image_url")
 
     if not image_url:
@@ -190,15 +191,17 @@ def detect():
         use_cache=False
     )
 
-    print("FULL RESULT:", result)
+    print("FULL RESULT:")
+    print(result)
 
     has_person = False
     has_idcard = False
 
     predictions = []
 
-    # ✅ SAFE parsing
     try:
+
+        # RESULT PARSING
         if isinstance(result, dict):
             predictions = result.get("predictions", [])
 
@@ -206,11 +209,19 @@ def detect():
             first = result[0]
             predictions = first.get("predictions", [])
 
-        # ✅ LOOP FIX (IMPORTANT)
+        print("PREDICTIONS:")
+        print(predictions)
+
+        # LOOP
         for item in predictions:
+
+            print("ITEM:")
+            print(item)
+
             cls = str(item.get("class", "")).lower()
 
-            print("Detected:", cls)
+            print("CLASS:")
+            print(cls)
 
             if cls == "person":
                 has_person = True
@@ -219,7 +230,12 @@ def detect():
                 has_idcard = True
 
     except Exception as e:
-        print("ERROR:", e)
+
+        print("ERROR:")
+        print(e)
+
+    print("PERSON:", has_person)
+    print("IDCARD:", has_idcard)
 
     return jsonify({
         "success": True,
