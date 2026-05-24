@@ -28,18 +28,24 @@ const upload = multer({ storage });
 router.post("/", upload.single("photo"), async (req, res) => {
   try {
 
-    console.log(req.file);
+    if (!req.file) {
+      return res.status(400).json({
+        error: "No file uploaded"
+      });
+    }
+
+    console.log(req.file.path);
+
+    console.log(process.env.PYTHON_API_URL);
 
     const detectRes = await axios.post(
-  `${process.env.PYTHON_API_URL}/detect`,
-  {
-    image_url: req.file.path
-  }
-);
+      `${process.env.PYTHON_API_URL}/detect`,
+      {
+        image_url: req.file.path
+      }
+    );
 
     console.log(detectRes.data);
-
-    const hasIdCard = detectRes.data.id_card_detected;
 
     const newPerson = new Person({
       name: req.body.name,
@@ -49,7 +55,7 @@ router.post("/", upload.single("photo"), async (req, res) => {
       email: req.body.email,
       location: req.body.location,
       photo: req.file.path,
-      idCard: hasIdCard
+      idCard: detectRes.data.id_card_detected
     });
 
     await newPerson.save();
@@ -60,8 +66,16 @@ router.post("/", upload.single("photo"), async (req, res) => {
     });
 
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: error.message });
+
+    console.log("FULL ERROR => ", error);
+
+    if (error.response) {
+      console.log(error.response.data);
+    }
+
+    res.status(500).json({
+      error: error.message
+    });
   }
 });
 
