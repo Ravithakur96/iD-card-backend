@@ -67,7 +67,16 @@ router.post("/", upload.single("photo"), async (req, res) => {
 
   } catch (error) {
 
-    console.log("FULL ERROR => ", error);
+    console.log("FULL ERROR => ", error.message);
+
+if (error.response) {
+  console.log("DATA =>", error.response.data);
+  console.log("STATUS =>", error.response.status);
+}
+
+if (error.request) {
+  console.log("NO RESPONSE FROM PYTHON API");
+}
 
     if (error.response) {
       console.log(error.response.data);
