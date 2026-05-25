@@ -47,6 +47,16 @@ router.post("/", upload.single("photo"), async (req, res) => {
 
     console.log(detectRes.data);
 
+    if (!detectRes.data.id_card_detected) {
+
+  return res.status(400).json({
+    success: false,
+    message: "Please upload clear ID Card photo",
+    idCard: false
+  });
+
+}
+
     const newPerson = new Person({
       name: req.body.name,
       dob: req.body.dob,
