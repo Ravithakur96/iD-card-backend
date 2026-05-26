@@ -1,6 +1,8 @@
 flask
 flask-cors
-requests
-gunicorn
 python-dotenv
 inference-sdk
+paddleocr
+paddlepaddle
+requests
+gunicorn

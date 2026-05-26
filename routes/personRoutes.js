@@ -4,16 +4,22 @@ const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const Person = require("../models/person");
 const axios = require("axios");
-const FormData = require("form-data");
-
 
 const router = express.Router();
+
+// ============================
+// CLOUDINARY CONFIG
+// ============================
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+// ============================
+// STORAGE
+// ============================
 
 const storage = new CloudinaryStorage({
   cloudinary,
@@ -25,85 +31,243 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage });
 
-router.post("/", upload.single("photo"), async (req, res) => {
-  try {
+// ============================
+// CREATE PERSON
+// ============================
 
-    if (!req.file) {
-      return res.status(400).json({
-        error: "No file uploaded"
+router.post(
+  "/",
+  upload.fields([
+    {
+      name: "photo",
+      maxCount: 1,
+    },
+    {
+      name: "idCardPhoto",
+      maxCount: 1,
+    },
+  ]),
+  async (req, res) => {
+
+    try {
+
+      // ============================
+      // FILE VALIDATION
+      // ============================
+
+      if (
+        !req.files ||
+        !req.files.photo ||
+        !req.files.idCardPhoto
+      ) {
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Both profile photo and ID Card image are required",
+        });
+
+      }
+
+      // ============================
+      // FILE PATHS
+      // ============================
+
+      const profileImage =
+        req.files.photo[0].path;
+
+      const idCardImage =
+        req.files.idCardPhoto[0].path;
+
+      console.log("PROFILE IMAGE:");
+      console.log(profileImage);
+
+      console.log("ID CARD IMAGE:");
+      console.log(idCardImage);
+
+      console.log("PYTHON API:");
+      console.log(process.env.PYTHON_API_URL);
+
+      // ============================
+      // PERSON + IDCARD DETECTION
+      // ============================
+
+      const detectRes = await axios.post(
+        `${process.env.PYTHON_API_URL}/detect`,
+        {
+          image_url: profileImage,
+        },
+        {
+          timeout: 30000,
+        }
+      );
+
+      console.log("DETECTION RESPONSE:");
+      console.log(detectRes.data);
+
+      // ============================
+      // IDCARD NOT DETECTED
+      // ============================
+
+      if (
+        !detectRes?.data?.id_card_detected
+      ) {
+
+        return res.status(400).json({
+          success: false,
+          message:
+            "Please upload a clear profile photo with visible ID Card.",
+          idCard: false,
+        });
+
+      }
+
+      // ============================
+      // OCR API
+      // ============================
+
+      const ocrRes = await axios.post(
+        `${process.env.PYTHON_API_URL}/ocr`,
+        {
+          image_url: idCardImage,
+        },
+        {
+          timeout: 30000,
+        }
+      );
+
+      console.log("OCR RESPONSE:");
+      console.log(ocrRes.data);
+
+      // ============================
+      // SAVE DATABASE
+      // ============================
+
+      const newPerson = new Person({
+
+        name: req.body.name,
+
+        dob: req.body.dob,
+
+        department: req.body.department,
+
+        phone: req.body.phone,
+
+        email: req.body.email,
+
+        location: req.body.location,
+
+        photo: profileImage,
+
+        idCardImage: idCardImage,
+
+        idCard:
+          detectRes.data.id_card_detected,
+
+        ocrData:
+          ocrRes?.data?.data || {},
+
       });
+
+      await newPerson.save();
+
+      // ============================
+      // SUCCESS RESPONSE
+      // ============================
+
+      res.json({
+        success: true,
+        message:
+          "Profile saved successfully",
+        data: newPerson,
+      });
+
+    } catch (error) {
+
+      console.log("===== FULL ERROR =====");
+
+      console.log(error.message);
+
+      // ============================
+      // AXIOS RESPONSE ERROR
+      // ============================
+
+      if (error.response) {
+
+        console.log("STATUS:");
+        console.log(error.response.status);
+
+        console.log("DATA:");
+        console.log(error.response.data);
+
+      }
+
+      // ============================
+      // NO RESPONSE
+      // ============================
+
+      if (error.request) {
+
+        console.log(
+          "NO RESPONSE FROM PYTHON API"
+        );
+
+      }
+
+      // ============================
+      // TIMEOUT ERROR
+      // ============================
+
+      if (
+        error.code === "ECONNABORTED"
+      ) {
+
+        return res.status(500).json({
+          success: false,
+          message:
+            "Server is waking up. Please try again in few seconds.",
+        });
+
+      }
+
+      // ============================
+      // FINAL ERROR RESPONSE
+      // ============================
+
+      res.status(500).json({
+        success: false,
+        message:
+          error?.response?.data?.message ||
+          error.message ||
+          "Internal Server Error",
+      });
+
     }
 
-    console.log(req.file.path);
-
-    console.log(process.env.PYTHON_API_URL);
-
-    const detectRes = await axios.post(
-  `${process.env.PYTHON_API_URL}/detect`,
-  {
-    image_url: req.file.path
-  },
-  {
-    timeout: 30000
   }
 );
 
-    console.log(detectRes.data);
+// ============================
+// GET ALL PERSONS
+// ============================
 
-    if (!detectRes?.data?.id_card_detected) {
+router.get("/", async (req, res) => {
 
-  return res.status(400).json({
-    success: false,
-    message: "Please upload clear ID Card photo",
-    idCard: false
-  });
+  try {
 
-}
+    const data = await Person.find();
 
-    const newPerson = new Person({
-      name: req.body.name,
-      dob: req.body.dob,
-      department: req.body.department,
-      phone: req.body.phone,
-      email: req.body.email,
-      location: req.body.location,
-      photo: req.file.path,
-      idCard: detectRes.data.id_card_detected
-    });
-
-    await newPerson.save();
-
-    res.json({
-      success: true,
-      data: newPerson
-    });
+    res.json(data);
 
   } catch (error) {
 
-    console.log("FULL ERROR => ", error.message);
-
-if (error.response) {
-  console.log("DATA =>", error.response.data);
-  console.log("STATUS =>", error.response.status);
-}
-
-if (error.request) {
-  console.log("NO RESPONSE FROM PYTHON API");
-}
-
-    if (error.response) {
-      console.log(error.response.data);
-    }
-
     res.status(500).json({
-      error: error.message
+      success: false,
+      message: error.message,
     });
-  }
-});
 
-router.get("/", async (req, res) => {
-  const data = await Person.find();
-  res.json(data);
+  }
+
 });
 
 module.exports = router;
