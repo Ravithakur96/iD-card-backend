@@ -98,7 +98,7 @@ router.post(
           image_url: profileImage,
         },
         {
-          timeout: 30000,
+          timeout: 60000,
         }
       );
 
