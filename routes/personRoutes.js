@@ -126,15 +126,39 @@ router.post(
       // OCR API
       // ============================
 
-      const ocrRes = await axios.post(
-        `${process.env.PYTHON_API_URL}/ocr`,
-        {
-          image_url: idCardImage,
-        },
-        {
-          timeout: 30000,
-        }
-      );
+      // ============================
+// OCR API
+// ============================
+
+let ocrData = {};
+
+try {
+
+  const ocrRes = await axios.post(
+    `${process.env.PYTHON_API_URL}/ocr`,
+    {
+      image_url: idCardImage,
+    },
+    {
+      timeout: 20000,
+    }
+  );
+
+  console.log("OCR RESPONSE:");
+  console.log(ocrRes.data);
+
+  ocrData = ocrRes?.data?.data || {};
+
+} catch (ocrError) {
+
+  console.log("===== OCR FAILED =====");
+
+  console.log(ocrError.message);
+
+  // OCR fail hone par bhi profile save hogi
+  ocrData = {};
+
+}
 
       console.log("OCR RESPONSE:");
       console.log(ocrRes.data);
@@ -164,8 +188,7 @@ router.post(
         idCard:
           detectRes.data.id_card_detected,
 
-        ocrData:
-          ocrRes?.data?.data || {},
+        ocrData: ocrData,
 
       });
 
