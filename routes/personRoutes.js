@@ -52,7 +52,7 @@ router.post(
     try {
 
       // ============================
-      // FILE VALIDATION
+      // VALIDATION
       // ============================
 
       if (
@@ -70,7 +70,7 @@ router.post(
       }
 
       // ============================
-      // FILE PATHS
+      // IMAGE PATHS
       // ============================
 
       const profileImage =
@@ -85,11 +85,8 @@ router.post(
       console.log("ID CARD IMAGE:");
       console.log(idCardImage);
 
-      console.log("PYTHON API:");
-      console.log(process.env.PYTHON_API_URL);
-
       // ============================
-      // PERSON + IDCARD DETECTION
+      // DETECT API
       // ============================
 
       const detectRes = await axios.post(
@@ -126,39 +123,15 @@ router.post(
       // OCR API
       // ============================
 
-      // ============================
-// OCR API
-// ============================
-
-let ocrData = {};
-
-try {
-
-  const ocrRes = await axios.post(
-    `${process.env.PYTHON_API_URL}/ocr`,
-    {
-      image_url: idCardImage,
-    },
-    {
-      timeout: 20000,
-    }
-  );
-
-  console.log("OCR RESPONSE:");
-  console.log(ocrRes.data);
-
-  ocrData = ocrRes?.data?.data || {};
-
-} catch (ocrError) {
-
-  console.log("===== OCR FAILED =====");
-
-  console.log(ocrError.message);
-
-  // OCR fail hone par bhi profile save hogi
-  ocrData = {};
-
-}
+      const ocrRes = await axios.post(
+        `${process.env.PYTHON_API_URL}/ocr`,
+        {
+          image_url: idCardImage,
+        },
+        {
+          timeout: 60000,
+        }
+      );
 
       console.log("OCR RESPONSE:");
       console.log(ocrRes.data);
@@ -188,7 +161,8 @@ try {
         idCard:
           detectRes.data.id_card_detected,
 
-        ocrData: ocrData,
+        ocrData:
+          ocrRes?.data?.data || {},
 
       });
 
@@ -211,10 +185,6 @@ try {
 
       console.log(error.message);
 
-      // ============================
-      // AXIOS RESPONSE ERROR
-      // ============================
-
       if (error.response) {
 
         console.log("STATUS:");
@@ -225,10 +195,6 @@ try {
 
       }
 
-      // ============================
-      // NO RESPONSE
-      // ============================
-
       if (error.request) {
 
         console.log(
@@ -238,7 +204,7 @@ try {
       }
 
       // ============================
-      // TIMEOUT ERROR
+      // TIMEOUT
       // ============================
 
       if (
@@ -254,7 +220,7 @@ try {
       }
 
       // ============================
-      // FINAL ERROR RESPONSE
+      // FINAL ERROR
       // ============================
 
       res.status(500).json({
