@@ -39,11 +39,14 @@ router.post("/", upload.single("photo"), async (req, res) => {
     console.log(process.env.PYTHON_API_URL);
 
     const detectRes = await axios.post(
-      `${process.env.PYTHON_API_URL}/detect`,
-      {
-        image_url: req.file.path
-      }
-    );
+  `${process.env.PYTHON_API_URL}/detect`,
+  {
+    image_url: req.file.path
+  },
+  {
+    timeout: 30000
+  }
+);
 
     console.log(detectRes.data);
 
