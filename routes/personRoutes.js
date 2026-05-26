@@ -47,7 +47,7 @@ router.post("/", upload.single("photo"), async (req, res) => {
 
     console.log(detectRes.data);
 
-    if (!detectRes.data.id_card_detected) {
+    if (!detectRes?.data?.id_card_detected) {
 
   return res.status(400).json({
     success: false,
