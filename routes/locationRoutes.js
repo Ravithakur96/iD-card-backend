@@ -1,4 +1,6 @@
 const express = require("express");
+const axios = require("axios");
+
 const router = express.Router();
 
 router.get("/reverse", async (req, res) => {
@@ -7,53 +9,51 @@ router.get("/reverse", async (req, res) => {
 
     const { lat, lon } = req.query;
 
-    if (!lat || !lon) {
-      return res.status(400).json({
-        success: false,
-        message: "Latitude and Longitude required"
-      });
-    }
-
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1&zoom=18`,
+    const response = await axios.get(
+      "https://us1.locationiq.com/v1/reverse",
       {
-        headers: {
-          "User-Agent": "mern-location-app"
+        params: {
+          key: process.env.LOCATIONIQ_API_KEY,
+          lat,
+          lon,
+          format: "json",
+          normalizeaddress: 1
         }
       }
     );
 
-    const data = await response.json();
+    const data = response.data;
 
     const address = data.address || {};
 
-    // Better readable location
-    const fullLocation = {
-      houseNumber: address.house_number || "",
-      road: address.road || "",
-      village: address.village || "",
-      suburb: address.suburb || "",
-      city:
-        address.city ||
-        address.town ||
-        address.county ||
-        "",
-      state: address.state || "",
-      country: address.country || "",
-      postcode: address.postcode || "",
-      fullAddress: data.display_name || ""
-    };
+    const fullLocation = `
+${address.name || ""}
+${address.house_number || ""}
+${address.road || ""}
+${address.neighbourhood || ""}
+${address.suburb || ""}
+${address.city || ""}
+${address.county || ""}
+${address.state || ""}
+${address.postcode || ""}
+${address.country || ""}
+    `
+      .replace(/\s+/g, " ")
+      .trim();
 
     res.json({
       success: true,
-      location: fullLocation
+      location: fullLocation,
+      fullData: data
     });
 
   } catch (err) {
 
+    console.log(err.response?.data || err.message);
+
     res.status(500).json({
       success: false,
-      error: err.message
+      error: "Location fetch failed"
     });
 
   }
