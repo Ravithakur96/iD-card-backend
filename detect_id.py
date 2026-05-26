@@ -23,15 +23,6 @@ client = InferenceHTTPClient(
 )
 
 # -----------------------------------
-# OCR MODEL
-# -----------------------------------
-
-ocr = PaddleOCR(
-    use_angle_cls=True,
-    lang="en"
-)
-
-# -----------------------------------
 # HOME ROUTE
 # -----------------------------------
 
@@ -101,9 +92,14 @@ def detect():
 
         if isinstance(result, dict):
 
-            if isinstance(result.get("predictions"), list):
+            if isinstance(
+                result.get("predictions"),
+                list
+            ):
 
-                predictions = result.get("predictions")
+                predictions = result.get(
+                    "predictions"
+                )
 
             elif isinstance(
                 result.get("predictions"),
@@ -201,7 +197,6 @@ def detect():
         print("\n===== DETECT ERROR =====")
         print(str(e))
 
-        # Render Sleep / Timeout Handle
         if (
             "timed out" in str(e).lower()
             or "timeout" in str(e).lower()
@@ -256,10 +251,30 @@ def extract_text():
 
         image_path = "temp_id_card.jpg"
 
-        response = requests.get(image_url)
+        response = requests.get(
+            image_url,
+            timeout=30
+        )
 
         with open(image_path, "wb") as f:
+
             f.write(response.content)
+
+        # -----------------------------------
+        # LOAD OCR ONLY WHEN NEEDED
+        # -----------------------------------
+
+        global ocr
+
+        if "ocr" not in globals():
+
+            print("===== LOADING OCR MODEL =====")
+
+            ocr = PaddleOCR(
+                use_angle_cls=False,
+                lang="en",
+                show_log=False
+            )
 
         # -----------------------------------
         # OCR RUN
@@ -296,7 +311,7 @@ def extract_text():
 
         for line in extracted_lines:
 
-            # CASE 1 -> NAME: Ravi
+            # CASE 1 → NAME: Ravi
             if ":" in line:
 
                 parts = line.split(":")
@@ -313,7 +328,7 @@ def extract_text():
 
                         extracted_data[key] = value
 
-            # CASE 2 -> NAME Ravi
+            # CASE 2 → NAME Ravi
             else:
 
                 words = line.split()
