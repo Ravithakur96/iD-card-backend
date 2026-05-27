@@ -181,66 +181,31 @@ router.post(
 
     } catch (error) {
 
-      console.log("===== FULL ERROR =====");
+  console.log("===== FULL ERROR =====");
 
-      console.log(error.message);
+  console.log(error);
 
-      if (error.response) {
+  console.log("MESSAGE:");
+  console.log(error.message);
 
-        console.log("STATUS:");
-        console.log(error.response.status);
+  if (error.response) {
 
-        console.log("DATA:");
-        console.log(error.response.data);
+    console.log("STATUS:");
+    console.log(error.response.status);
 
-      }
+    console.log("DATA:");
+    console.log(error.response.data);
 
-       // ============================
- // 429 RATE LIMIT
- // ============================
+  }
 
- if (
-   error.response?.status === 429
- ) {
+  res.status(500).json({
+    success: false,
+    message:
+      error?.response?.data?.message ||
+      error.message
+  });
 
-   return res.status(429).json({
-     success: false,
-     message:
-       "Too many requests. Please wait a few seconds and try again.",
-   });
-
- }
-
-      // ============================
-      // TIMEOUT
-      // ============================
-
-      if (
-        error.code === "ECONNABORTED"
-      ) {
-
-        return res.status(500).json({
-          success: false,
-          message:
-            "Server is waking up. Please try again in few seconds.",
-        });
-
-      }
-
-      // ============================
-      // FINAL ERROR
-      // ============================
-
-      res.status(500).json({
-        success: false,
-        message:
-          error?.response?.data?.message ||
-          error.message ||
-          "Internal Server Error",
-      });
-
-    }
-
+}
   }
 );
 
