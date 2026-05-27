@@ -1,8 +1,12 @@
-flask
+Flask
 flask-cors
 python-dotenv
 inference-sdk
-paddleocr
-paddlepaddle
+easyocr
 requests
 gunicorn
+torch
+torchvision
+opencv-python-headless
+numpy
+Pillow

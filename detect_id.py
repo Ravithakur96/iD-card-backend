@@ -1,93 +1,63 @@
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from inference_sdk import InferenceHTTPClient
-from paddleocr import PaddleOCR
+import easyocr
 import requests
-import logging
-import traceback
-import gc
 import os
-
-# =========================================
-# DISABLE EXTRA LOGS
-# =========================================
+import logging
 
 logging.disable(logging.CRITICAL)
 
-# =========================================
+# =========================
 # LOAD ENV
-# =========================================
+# =========================
 
 load_dotenv()
 
-# =========================================
-# FLASK APP
-# =========================================
-
 app = Flask(__name__)
 
-# =========================================
-# ROBOFLOW CLIENT
-# =========================================
+# =========================
+# ROBOFLOW
+# =========================
 
 client = InferenceHTTPClient(
     api_url="https://serverless.roboflow.com",
     api_key=os.getenv("ROBOFLOW_API_KEY")
 )
 
-# =========================================
-# OCR VARIABLE
-# =========================================
+# =========================
+# EASY OCR
+# =========================
 
-ocr = None
+reader = easyocr.Reader(
+    ['en'],
+    gpu=False
+)
 
-# =========================================
-# HOME ROUTE
-# =========================================
+# =========================
+# HOME
+# =========================
 
-@app.route("/", methods=["GET"])
+@app.route("/")
 def home():
 
     return jsonify({
         "success": True,
-        "message": "Python Detection + OCR API Running"
+        "message": "API Running"
     })
 
-# =========================================
-# DETECT ROUTE
-# =========================================
+# =========================
+# DETECT
+# =========================
 
 @app.route("/detect", methods=["POST"])
 def detect():
 
     try:
 
-        print("\n===== DETECT API HIT =====")
-
         data = request.get_json()
 
-        if not data:
-
-            return jsonify({
-                "success": False,
-                "message": "No JSON data received"
-            }), 400
-
         image_url = data.get("image_url")
-
-        print("IMAGE URL:")
-        print(image_url)
-
-        if not image_url:
-
-            return jsonify({
-                "success": False,
-                "message": "No image_url provided"
-            }), 400
-
-        # =========================================
-        # ROBOFLOW DETECTION
-        # =========================================
 
         result = client.run_workflow(
             workspace_name="sr-banda",
@@ -98,89 +68,34 @@ def detect():
             use_cache=True
         )
 
-        print("===== ROBOFLOW RESPONSE RECEIVED =====")
-
         has_person = False
         has_idcard = False
 
         predictions = []
 
-        # =========================================
-        # RESULT PARSING
-        # =========================================
-
         if isinstance(result, dict):
 
-            if isinstance(
-                result.get("predictions"),
-                list
-            ):
+            if isinstance(result.get("predictions"), list):
 
-                predictions = result.get(
-                    "predictions"
-                )
+                predictions = result.get("predictions")
 
-            elif isinstance(
-                result.get("predictions"),
-                dict
-            ):
+            elif isinstance(result.get("predictions"), dict):
 
-                predictions = result[
-                    "predictions"
-                ].get(
+                predictions = result["predictions"].get(
                     "predictions",
                     []
                 )
-
-        elif (
-            isinstance(result, list)
-            and len(result) > 0
-        ):
-
-            first = result[0]
-
-            if isinstance(
-                first.get("predictions"),
-                list
-            ):
-
-                predictions = first.get(
-                    "predictions"
-                )
-
-            elif isinstance(
-                first.get("predictions"),
-                dict
-            ):
-
-                predictions = first[
-                    "predictions"
-                ].get(
-                    "predictions",
-                    []
-                )
-
-        print("===== FINAL PREDICTIONS =====")
-        print(predictions)
-
-        # =========================================
-        # DETECTION LOOP
-        # =========================================
 
         for item in predictions:
 
             cls = str(
                 item.get("class", "")
-            ).strip().lower()
+            ).lower().strip()
 
-            print("CLASS:", cls)
-
-            # PERSON
             if cls == "person":
 
                 has_person = True
 
-            # ID CARD
             if cls in [
                 "idcard",
                 "id card",
@@ -189,218 +104,96 @@ def detect():
 
                 has_idcard = True
 
-        final_result = (
-            has_person and has_idcard
-        )
-
-        print("PERSON:", has_person)
-        print("IDCARD:", has_idcard)
-        print("FINAL:", final_result)
-
-        gc.collect()
-
         return jsonify({
 
             "success": True,
 
-            "id_card_detected": final_result,
+            "id_card_detected":
+            has_person and has_idcard,
 
-            "person_detected": has_person,
+            "person_detected":
+            has_person,
 
-            "card_detected": has_idcard,
+            "card_detected":
+            has_idcard,
 
-            "predictions": predictions
+            "predictions":
+            predictions
 
         })
 
     except Exception as e:
-
-        print("\n===== DETECT ERROR =====")
-        traceback.print_exc()
-
-        if (
-            "timed out" in str(e).lower()
-            or "timeout" in str(e).lower()
-        ):
-
-            return jsonify({
-                "success": False,
-                "message":
-                "Server is waking up. Please try again in few seconds."
-            }), 500
 
         return jsonify({
             "success": False,
             "message": str(e)
         }), 500
 
-# =========================================
-# OCR ROUTE
-# =========================================
+# =========================
+# OCR
+# =========================
 
 @app.route("/ocr", methods=["POST"])
-def extract_text():
+def ocr_route():
 
     try:
 
-        print("\n===== OCR API HIT =====")
-
         data = request.get_json()
 
-        if not data:
-
-            return jsonify({
-                "success": False,
-                "message": "No JSON data received"
-            }), 400
-
         image_url = data.get("image_url")
-
-        print("OCR IMAGE URL:")
-        print(image_url)
 
         if not image_url:
 
             return jsonify({
                 "success": False,
-                "message": "No image_url provided"
+                "message": "No image"
             }), 400
 
-        # =========================================
         # DOWNLOAD IMAGE
-        # =========================================
 
-        image_path = "temp_id_card.jpg"
+        image_path = "temp.jpg"
 
-        response = requests.get(
-            image_url,
-            timeout=30
-        )
-
-        if response.status_code != 200:
-
-            return jsonify({
-                "success": False,
-                "message": "Unable to download image"
-            }), 400
+        response = requests.get(image_url)
 
         with open(image_path, "wb") as f:
 
             f.write(response.content)
 
-        # =========================================
-        # LOAD OCR MODEL ONLY ONCE
-        # =========================================
+        # OCR
 
-        global ocr
+        result = reader.readtext(image_path)
 
-        if ocr is None:
+        raw_text = []
 
-            print("===== LOADING OCR MODEL =====")
+        for item in result:
 
-            ocr = PaddleOCR(
-                use_angle_cls=False,
-                lang="en"
-            )
+            text = item[1]
 
-        # =========================================
-        # OCR RUN
-        # =========================================
+            raw_text.append(text)
 
-        result = ocr.ocr(image_path)
-
-        extracted_lines = []
-
-        if (
-            result
-            and len(result) > 0
-            and result[0]
-        ):
-
-            for line in result[0]:
-
-                try:
-
-                    text = line[1][0]
-
-                    cleaned_text = text.strip()
-
-                    if cleaned_text:
-
-                        extracted_lines.append(
-                            cleaned_text
-                        )
-
-                except:
-
-                    pass
-
-        print("===== OCR TEXT =====")
-        print(extracted_lines)
-
-        # =========================================
-        # KEY VALUE EXTRACTION
-        # =========================================
+        # DYNAMIC DATA
 
         extracted_data = {}
 
-        for line in extracted_lines:
-
-            # CASE 1 → KEY: VALUE
+        for line in raw_text:
 
             if ":" in line:
 
                 parts = line.split(":")
 
-                if len(parts) >= 2:
+                key = parts[0].strip()
 
-                    key = parts[0].strip()
+                value = ":".join(parts[1:]).strip()
 
-                    value = ":".join(
-                        parts[1:]
-                    ).strip()
+                if key and value:
 
-                    if key and value:
-
-                        extracted_data[key] = value
-
-            # CASE 2 → KEY VALUE
-
-            else:
-
-                words = line.split()
-
-                if len(words) >= 2:
-
-                    key = words[0].strip()
-
-                    value = " ".join(
-                        words[1:]
-                    ).strip()
-
-                    if (
-                        key
-                        and value
-                        and len(key) < 30
-                    ):
-
-                        extracted_data[key] = value
-
-        # =========================================
-        # DELETE TEMP FILE
-        # =========================================
-
-        if os.path.exists(image_path):
-
-            os.remove(image_path)
-
-        gc.collect()
+                    extracted_data[key] = value
 
         return jsonify({
 
             "success": True,
 
-            "raw_text": extracted_lines,
+            "raw_text": raw_text,
 
             "data": extracted_data
 
@@ -408,17 +201,16 @@ def extract_text():
 
     except Exception as e:
 
-        print("\n===== OCR ERROR =====")
-        traceback.print_exc()
+        print(str(e))
 
         return jsonify({
             "success": False,
             "message": str(e)
         }), 500
 
-# =========================================
-# START SERVER
-# =========================================
+# =========================
+# START
+# =========================
 
 if __name__ == "__main__":
 
