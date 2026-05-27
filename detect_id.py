@@ -3,28 +3,47 @@ from dotenv import load_dotenv
 from inference_sdk import InferenceHTTPClient
 from paddleocr import PaddleOCR
 import requests
+import logging
+import traceback
+import gc
 import os
 
-# -----------------------------------
+# =========================================
+# DISABLE EXTRA LOGS
+# =========================================
+
+logging.disable(logging.CRITICAL)
+
+# =========================================
 # LOAD ENV
-# -----------------------------------
+# =========================================
 
 load_dotenv()
 
+# =========================================
+# FLASK APP
+# =========================================
+
 app = Flask(__name__)
 
-# -----------------------------------
+# =========================================
 # ROBOFLOW CLIENT
-# -----------------------------------
+# =========================================
 
 client = InferenceHTTPClient(
     api_url="https://serverless.roboflow.com",
     api_key=os.getenv("ROBOFLOW_API_KEY")
 )
 
-# -----------------------------------
+# =========================================
+# OCR VARIABLE
+# =========================================
+
+ocr = None
+
+# =========================================
 # HOME ROUTE
-# -----------------------------------
+# =========================================
 
 @app.route("/", methods=["GET"])
 def home():
@@ -34,9 +53,9 @@ def home():
         "message": "Python Detection + OCR API Running"
     })
 
-# -----------------------------------
+# =========================================
 # DETECT ROUTE
-# -----------------------------------
+# =========================================
 
 @app.route("/detect", methods=["POST"])
 def detect():
@@ -66,9 +85,9 @@ def detect():
                 "message": "No image_url provided"
             }), 400
 
-        # -----------------------------------
+        # =========================================
         # ROBOFLOW DETECTION
-        # -----------------------------------
+        # =========================================
 
         result = client.run_workflow(
             workspace_name="sr-banda",
@@ -86,9 +105,9 @@ def detect():
 
         predictions = []
 
-        # -----------------------------------
+        # =========================================
         # RESULT PARSING
-        # -----------------------------------
+        # =========================================
 
         if isinstance(result, dict):
 
@@ -144,9 +163,9 @@ def detect():
         print("===== FINAL PREDICTIONS =====")
         print(predictions)
 
-        # -----------------------------------
+        # =========================================
         # DETECTION LOOP
-        # -----------------------------------
+        # =========================================
 
         for item in predictions:
 
@@ -156,12 +175,12 @@ def detect():
 
             print("CLASS:", cls)
 
-            # PERSON DETECT
+            # PERSON
             if cls == "person":
 
                 has_person = True
 
-            # ID CARD DETECT
+            # ID CARD
             if cls in [
                 "idcard",
                 "id card",
@@ -177,6 +196,8 @@ def detect():
         print("PERSON:", has_person)
         print("IDCARD:", has_idcard)
         print("FINAL:", final_result)
+
+        gc.collect()
 
         return jsonify({
 
@@ -195,7 +216,7 @@ def detect():
     except Exception as e:
 
         print("\n===== DETECT ERROR =====")
-        print(str(e))
+        traceback.print_exc()
 
         if (
             "timed out" in str(e).lower()
@@ -213,9 +234,9 @@ def detect():
             "message": str(e)
         }), 500
 
-# -----------------------------------
+# =========================================
 # OCR ROUTE
-# -----------------------------------
+# =========================================
 
 @app.route("/ocr", methods=["POST"])
 def extract_text():
@@ -245,9 +266,9 @@ def extract_text():
                 "message": "No image_url provided"
             }), 400
 
-        # -----------------------------------
+        # =========================================
         # DOWNLOAD IMAGE
-        # -----------------------------------
+        # =========================================
 
         image_path = "temp_id_card.jpg"
 
@@ -256,62 +277,77 @@ def extract_text():
             timeout=30
         )
 
+        if response.status_code != 200:
+
+            return jsonify({
+                "success": False,
+                "message": "Unable to download image"
+            }), 400
+
         with open(image_path, "wb") as f:
 
             f.write(response.content)
 
-        # -----------------------------------
-        # LOAD OCR ONLY WHEN NEEDED
-        # -----------------------------------
+        # =========================================
+        # LOAD OCR MODEL ONLY ONCE
+        # =========================================
 
         global ocr
 
-        if "ocr" not in globals():
+        if ocr is None:
 
             print("===== LOADING OCR MODEL =====")
 
             ocr = PaddleOCR(
                 use_angle_cls=False,
-                lang="en",
-                show_log=False
+                lang="en"
             )
 
-        # -----------------------------------
+        # =========================================
         # OCR RUN
-        # -----------------------------------
+        # =========================================
 
-        result = ocr.ocr(
-            image_path
-        )
+        result = ocr.ocr(image_path)
 
         extracted_lines = []
 
-        if result and result[0]:
+        if (
+            result
+            and len(result) > 0
+            and result[0]
+        ):
 
             for line in result[0]:
 
-                text = line[1][0]
+                try:
 
-                cleaned_text = text.strip()
+                    text = line[1][0]
 
-                if cleaned_text:
+                    cleaned_text = text.strip()
 
-                    extracted_lines.append(
-                        cleaned_text
-                    )
+                    if cleaned_text:
+
+                        extracted_lines.append(
+                            cleaned_text
+                        )
+
+                except:
+
+                    pass
 
         print("===== OCR TEXT =====")
         print(extracted_lines)
 
-        # -----------------------------------
-        # DYNAMIC KEY VALUE EXTRACTION
-        # -----------------------------------
+        # =========================================
+        # KEY VALUE EXTRACTION
+        # =========================================
 
         extracted_data = {}
 
         for line in extracted_lines:
 
-            # CASE 1 → NAME: Ravi
+            # CASE 1 → KEY: VALUE
+
             if ":" in line:
 
                 parts = line.split(":")
@@ -328,7 +364,8 @@ def extract_text():
 
                         extracted_data[key] = value
 
-            # CASE 2 → NAME Ravi
+            # CASE 2 → KEY VALUE
+
             else:
 
                 words = line.split()
@@ -349,6 +386,16 @@ def extract_text():
 
                         extracted_data[key] = value
 
+        # =========================================
+        # DELETE TEMP FILE
+        # =========================================
+
+        if os.path.exists(image_path):
+
+            os.remove(image_path)
+
+        gc.collect()
+
         return jsonify({
 
             "success": True,
@@ -362,16 +409,16 @@ def extract_text():
     except Exception as e:
 
         print("\n===== OCR ERROR =====")
-        print(str(e))
+        traceback.print_exc()
 
         return jsonify({
             "success": False,
             "message": str(e)
         }), 500
 
-# -----------------------------------
+# =========================================
 # START SERVER
-# -----------------------------------
+# =========================================
 
 if __name__ == "__main__":
 
