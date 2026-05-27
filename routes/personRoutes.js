@@ -195,13 +195,21 @@ router.post(
 
       }
 
-      if (error.request) {
+       // ============================
+ // 429 RATE LIMIT
+ // ============================
 
-        console.log(
-          "NO RESPONSE FROM PYTHON API"
-        );
+ if (
+   error.response?.status === 429
+ ) {
 
-      }
+   return res.status(429).json({
+     success: false,
+     message:
+       "Too many requests. Please wait a few seconds and try again.",
+   });
+
+ }
 
       // ============================
       // TIMEOUT
