@@ -1,54 +1,81 @@
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from inference_sdk import InferenceHTTPClient
-import easyocr
+from paddleocr import PaddleOCR
 import requests
-import os
 import logging
+import traceback
+import gc
+import os
+
+# =====================================
+# DISABLE LOGS
+# =====================================
 
 logging.disable(logging.CRITICAL)
 
-# =========================
+# =====================================
 # LOAD ENV
-# =========================
+# =====================================
 
 load_dotenv()
 
+# =====================================
+# FLASK APP
+# =====================================
+
 app = Flask(__name__)
 
-# =========================
-# ROBOFLOW
-# =========================
+# =====================================
+# ROBOFLOW CLIENT
+# =====================================
 
 client = InferenceHTTPClient(
     api_url="https://serverless.roboflow.com",
     api_key=os.getenv("ROBOFLOW_API_KEY")
 )
 
-# =========================
-# EASY OCR
-# =========================
+# =====================================
+# OCR MODEL (GLOBAL)
+# =====================================
 
-reader = easyocr.Reader(
-    ['en'],
-    gpu=False
-)
+ocr = None
 
-# =========================
-# HOME
-# =========================
+# =====================================
+# LOAD OCR ONLY WHEN NEEDED
+# =====================================
 
-@app.route("/")
+def get_ocr():
+
+    global ocr
+
+    if ocr is None:
+
+        print("===== LOADING OCR MODEL =====")
+
+        ocr = PaddleOCR(
+            use_angle_cls=False,
+            lang="en",
+            show_log=False
+        )
+
+    return ocr
+
+# =====================================
+# HOME ROUTE
+# =====================================
+
+@app.route("/", methods=["GET"])
 def home():
 
     return jsonify({
         "success": True,
-        "message": "API Running"
+        "message": "Python OCR API Running"
     })
 
-# =========================
-# DETECT
-# =========================
+# =====================================
+# DETECT ROUTE
+# =====================================
 
 @app.route("/detect", methods=["POST"])
 def detect():
@@ -57,7 +84,28 @@ def detect():
 
         data = request.get_json()
 
+        if not data:
+
+            return jsonify({
+                "success": False,
+                "message": "No JSON received"
+            }), 400
+
         image_url = data.get("image_url")
+
+        if not image_url:
+
+            return jsonify({
+                "success": False,
+                "message": "No image_url"
+            }), 400
+
+        print("\n===== DETECT API =====")
+        print(image_url)
+
+        # =====================================
+        # ROBOFLOW
+        # =====================================
 
         result = client.run_workflow(
             workspace_name="sr-banda",
@@ -68,29 +116,58 @@ def detect():
             use_cache=True
         )
 
-        has_person = False
-        has_idcard = False
-
         predictions = []
 
-        if isinstance(result, dict):
+        # =====================================
+        # RESULT PARSE
+        # =====================================
 
-            if isinstance(result.get("predictions"), list):
+        if isinstance(result, list):
 
-                predictions = result.get("predictions")
+            if len(result) > 0:
 
-            elif isinstance(result.get("predictions"), dict):
+                first = result[0]
 
-                predictions = result["predictions"].get(
+                if isinstance(first, dict):
+
+                    if isinstance(
+                        first.get("predictions"),
+                        dict
+                    ):
+
+                        predictions = first[
+                            "predictions"
+                        ].get(
+                            "predictions",
+                            []
+                        )
+
+        elif isinstance(result, dict):
+
+            if isinstance(
+                result.get("predictions"),
+                list
+            ):
+
+                predictions = result.get(
                     "predictions",
                     []
                 )
+
+        # =====================================
+        # DETECTION CHECK
+        # =====================================
+
+        has_person = False
+        has_idcard = False
 
         for item in predictions:
 
             cls = str(
                 item.get("class", "")
             ).lower().strip()
+
+            print("CLASS:", cls)
 
             if cls == "person":
 
@@ -104,12 +181,18 @@ def detect():
 
                 has_idcard = True
 
+        final_result = (
+            has_person and has_idcard
+        )
+
+        gc.collect()
+
         return jsonify({
 
             "success": True,
 
             "id_card_detected":
-            has_person and has_idcard,
+            final_result,
 
             "person_detected":
             has_person,
@@ -124,21 +207,32 @@ def detect():
 
     except Exception as e:
 
+        traceback.print_exc()
+
         return jsonify({
             "success": False,
             "message": str(e)
         }), 500
 
-# =========================
-# OCR
-# =========================
+# =====================================
+# OCR ROUTE
+# =====================================
 
 @app.route("/ocr", methods=["POST"])
-def ocr_route():
+def extract_text():
+
+    image_path = "temp.jpg"
 
     try:
 
         data = request.get_json()
+
+        if not data:
+
+            return jsonify({
+                "success": False,
+                "message": "No JSON received"
+            }), 400
 
         image_url = data.get("image_url")
 
@@ -146,36 +240,75 @@ def ocr_route():
 
             return jsonify({
                 "success": False,
-                "message": "No image"
+                "message": "No image_url"
             }), 400
 
+        print("\n===== OCR API =====")
+        print(image_url)
+
+        # =====================================
         # DOWNLOAD IMAGE
+        # =====================================
 
-        image_path = "temp.jpg"
+        response = requests.get(
+            image_url,
+            timeout=20
+        )
 
-        response = requests.get(image_url)
+        if response.status_code != 200:
+
+            return jsonify({
+                "success": False,
+                "message": "Image download failed"
+            }), 400
 
         with open(image_path, "wb") as f:
 
             f.write(response.content)
 
+        # =====================================
         # OCR
+        # =====================================
 
-        result = reader.readtext(image_path)
+        ocr_model = get_ocr()
 
-        raw_text = []
+        result = ocr_model.ocr(
+            image_path,
+            cls=False
+        )
 
-        for item in result:
+        extracted_lines = []
 
-            text = item[1]
+        if result and result[0]:
 
-            raw_text.append(text)
+            for line in result[0]:
 
-        # DYNAMIC DATA
+                try:
+
+                    text = line[1][0]
+
+                    cleaned = text.strip()
+
+                    if cleaned:
+
+                        extracted_lines.append(
+                            cleaned
+                        )
+
+                except:
+
+                    pass
+
+        print("===== OCR TEXT =====")
+        print(extracted_lines)
+
+        # =====================================
+        # KEY VALUE EXTRACTION
+        # =====================================
 
         extracted_data = {}
 
-        for line in raw_text:
+        for line in extracted_lines:
 
             if ":" in line:
 
@@ -183,17 +316,21 @@ def ocr_route():
 
                 key = parts[0].strip()
 
-                value = ":".join(parts[1:]).strip()
+                value = ":".join(
+                    parts[1:]
+                ).strip()
 
                 if key and value:
 
                     extracted_data[key] = value
 
+        gc.collect()
+
         return jsonify({
 
             "success": True,
 
-            "raw_text": raw_text,
+            "raw_text": extracted_lines,
 
             "data": extracted_data
 
@@ -201,16 +338,30 @@ def ocr_route():
 
     except Exception as e:
 
-        print(str(e))
+        traceback.print_exc()
 
         return jsonify({
             "success": False,
             "message": str(e)
         }), 500
 
-# =========================
-# START
-# =========================
+    finally:
+
+        # DELETE TEMP FILE
+
+        if os.path.exists(image_path):
+
+            try:
+
+                os.remove(image_path)
+
+            except:
+
+                pass
+
+# =====================================
+# START SERVER
+# =====================================
 
 if __name__ == "__main__":
 
