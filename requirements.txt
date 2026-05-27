@@ -2,11 +2,10 @@ Flask
 flask-cors
 python-dotenv
 inference-sdk
-easyocr
+paddleocr
+paddlepaddle
 requests
 gunicorn
-torch
-torchvision
 opencv-python-headless
 numpy
 Pillow
