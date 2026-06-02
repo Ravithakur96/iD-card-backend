@@ -54,10 +54,9 @@ def get_ocr():
         print("===== LOADING OCR MODEL =====")
 
         ocr = PaddleOCR(
-            use_angle_cls=False,
-            lang="en",
-            show_log=False
-        )
+    use_angle_cls=False,
+    lang="en"
+)
 
     return ocr
 
@@ -272,10 +271,10 @@ def extract_text():
 
         ocr_model = get_ocr()
 
-        result = ocr_model.ocr(
-            image_path,
-            cls=False
-        )
+        result = ocr.ocr(
+    image_path,
+    cls=False
+)
 
         extracted_lines = []
 
@@ -364,12 +363,10 @@ def extract_text():
 # =====================================
 
 if __name__ == "__main__":
-
-    port = int(
-        os.environ.get("PORT", 10000)
-    )
-
+    print("Starting Flask Server...")
+    
     app.run(
-        host="0.0.0.0",
-        port=port
+        host="127.0.0.1",
+        port=10000,
+        debug=True
     )

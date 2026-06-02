@@ -109,6 +109,7 @@ router.post(
 
       console.log("DETECTION RESPONSE:");
       console.log(detectRes.data);
+      console.log("PYTHON_API_URL =", process.env.PYTHON_API_URL);
 
       // ======================================
       // CHECK ID CARD
@@ -180,7 +181,10 @@ router.post(
           detectRes.data.id_card_detected,
 
         ocrData:
-          ocrRes?.data?.data || {},
+  ocrRes?.data?.data || {},
+
+rawText:
+  ocrRes?.data?.raw_text || [],
 
       });
 

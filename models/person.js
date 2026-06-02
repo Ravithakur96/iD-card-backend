@@ -8,7 +8,12 @@ const personSchema = new mongoose.Schema({
   email: String,
   location: String,
   photo: String,
-  idCard: Boolean
+
+  idCard: Boolean,
+
+  ocrData: mongoose.Schema.Types.Mixed,
+
+  rawText: [String]
 });
 
 module.exports = mongoose.model("Person", personSchema);
