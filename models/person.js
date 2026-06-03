@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const personSchema = new mongoose.Schema({
   name: String,
   dob: String,
+   age: Number,
   department: String,
   phone: String,
   email: String,
@@ -10,6 +11,7 @@ const personSchema = new mongoose.Schema({
   photo: String,
 
   idCard: Boolean,
+  backgroundText: [String],
 
   ocrData: mongoose.Schema.Types.Mixed,
 

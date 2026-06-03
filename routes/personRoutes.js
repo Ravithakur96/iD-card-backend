@@ -147,6 +147,37 @@ router.post(
       console.log("OCR RESPONSE:");
       console.log(ocrRes.data);
 
+
+      let age = null;
+
+if (req.body.dob) {
+  const dob = new Date(req.body.dob);
+
+  const today = new Date();
+
+  age = today.getFullYear() - dob.getFullYear();
+
+  const monthDiff = today.getMonth() - dob.getMonth();
+
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 &&
+      today.getDate() < dob.getDate())
+  ) {
+    age--;
+  }
+}
+
+
+
+
+      const backgroundOcrRes = await axios.post(
+  `${process.env.PYTHON_API_URL}/ocr`,
+  {
+    image_url: profileImage,
+  }
+);
+
       // ======================================
       // SAVE DATABASE
       // ======================================
@@ -158,6 +189,8 @@ router.post(
 
         dob:
           req.body.dob || "",
+
+          age: age,
 
         department:
           req.body.department || "",
@@ -186,9 +219,49 @@ router.post(
 rawText:
   ocrRes?.data?.raw_text || [],
 
+  backgroundText:
+  backgroundOcrRes?.data?.raw_text || [],
+
       });
 
       await newPerson.save();
+
+      try {
+
+  await axios.post(
+    process.env.GOOGLE_SHEET_WEBHOOK,
+    {
+      name: req.body.name || "",
+
+      dob: req.body.dob || "",
+
+      phone: req.body.phone || "",
+
+      email: req.body.email || "",
+
+      location: req.body.location || "",
+
+      ocrText:
+        (ocrRes?.data?.raw_text || []).join(" | "),
+
+      backgroundText:
+        (backgroundOcrRes?.data?.raw_text || []).join(" | "),
+
+      photo: profileImage,
+
+      idCardImage: idCardImage,
+    }
+  );
+
+  console.log("Google Sheet Updated");
+
+} catch (sheetError) {
+
+  console.log("Google Sheet Error");
+
+  console.log(sheetError.message);
+
+}
 
       console.log("\n===== DATA SAVED =====");
 
