@@ -1,0 +1,2 @@
+[tool.vercel]
+entrypoint = "detect_id:app"
