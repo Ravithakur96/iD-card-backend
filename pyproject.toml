@@ -1,2 +1,7 @@
+[project]
+name = "id-card-backend"
+version = "0.1.0"
+requires-python = ">=3.10.11"
+
 [tool.vercel]
 entrypoint = "detect_id:app"
